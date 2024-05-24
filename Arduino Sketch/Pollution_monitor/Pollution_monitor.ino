@@ -10,6 +10,7 @@ Sensor baro(SENSOR_ID_BARO);
 Sensor humidity(SENSOR_ID_HUM);
 Sensor gas(SENSOR_ID_GAS);
 SensorBSEC bsec(SENSOR_ID_BSEC);
+SensorActivity active(SENSOR_ID_AR);
 
 BLEService serviceUUID(BLE_UUID("0000"));
 BLEFloatCharacteristic tempUUID(BLE_UUID("1001"), BLERead | BLENotify);
@@ -18,13 +19,18 @@ BLEFloatCharacteristic humidityUUID(BLE_UUID("3001"), BLERead | BLENotify);
 BLEFloatCharacteristic gasUUID(BLE_UUID("4001"), BLERead | BLENotify);
 BLEFloatCharacteristic iaqUUID(BLE_UUID("5001"), BLERead | BLENotify);
 BLEFloatCharacteristic co2UUID(BLE_UUID("6001"), BLERead | BLENotify);
+BLEStringCharacteristic activityInfoUUID(BLE_UUID("7001"), BLERead | BLENotify, 50);
+BLEFloatCharacteristic activityFlagUUID(BLE_UUID("8001"), BLERead | BLENotify);
+
+unsigned long previousMillis = 0;
+const long interval = 15000;
 
 void setup() {
   Serial.begin(9600);
   while (!Serial);
 
   if (!BLE.begin()) {
-    Serial.println("ble failed");
+    Serial.println("BLE failed");
     while (1);
   }
 
@@ -38,6 +44,7 @@ void setup() {
   humidity.begin();
   gas.begin();
   bsec.begin();
+  active.begin();
 
   BLE.setLocalName("ValueMonitor");
   BLE.setAdvertisedService(serviceUUID);
@@ -48,48 +55,60 @@ void setup() {
   serviceUUID.addCharacteristic(gasUUID);
   serviceUUID.addCharacteristic(iaqUUID);
   serviceUUID.addCharacteristic(co2UUID);
+  serviceUUID.addCharacteristic(activityInfoUUID);
+  serviceUUID.addCharacteristic(activityFlagUUID);
 
   BLE.addService(serviceUUID);
 
   BLE.advertise();
 
-  Serial.println("ble searching...");
+  Serial.println("BLE searching...");
+
+  nicla::leds.setColor(red);
 }
 
 void loop() {
   static unsigned long time = millis();
-  static unsigned long gastime = millis();
 
-  if(BLE.connected()){
+  if (BLE.connected()) {
     Serial.println("Connected to Central: ");
     BLE.stopAdvertise();
+    nicla::leds.setColor(blue);
   }
+
   while (BLE.connected()) {
-
-    nicla::leds.setColor(blue);
-    // If you want to print the central address, ensure you have the necessary code for it.
-
     BHY2.update();
-    nicla::leds.setColor(blue);
+    unsigned long currentMillis = millis();
 
-    if (millis() - gastime >= 11000) {
-      gastime = millis();
-      gasUUID.writeValue(gas.value());
-      iaqUUID.writeValue(static_cast<float>(bsec.iaq()));
-      co2UUID.writeValue(bsec.co2_eq());
-    }
+    if (currentMillis - previousMillis >= interval) {
+      previousMillis = currentMillis;
 
-    if (millis() - time >= 2500) {
-      time = millis();
+      // Read sensor values
       tempUUID.writeValue(temp.value());
       pressureUUID.writeValue(baro.value());
       humidityUUID.writeValue(humidity.value());
+      gasUUID.writeValue(gas.value());
+      iaqUUID.writeValue(static_cast<float>(bsec.iaq()));
+      co2UUID.writeValue(bsec.co2_eq());
+
+      // Read activity sensor
+      String activityString = active.toString();
+      Serial.println(String("Activity info: ") + activityString);
+      activityInfoUUID.writeValue(activityString);
+
+      float activityFlag = 1; // 1 means active, 0 means standing still or in vehicle still
+      if (activityString.equals("Still activity started") || activityString.equals("IN vehicle activity started")) {
+        activityFlag = 0;
+      }
+
+      activityFlagUUID.writeValue(activityFlag);
+      Serial.println(String("Activity Flag: ") + activityFlag);
     }
   }
 
-  if (BLE.disconnect()) {
+  /*if (!BLE.connected()) {
     Serial.println("Disconnected");
     BLE.advertise();
     nicla::leds.setColor(red);
-  }
+  }*/
 }
