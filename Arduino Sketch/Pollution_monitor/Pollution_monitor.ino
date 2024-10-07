@@ -10,7 +10,7 @@ Sensor baro(SENSOR_ID_BARO);
 Sensor humidity(SENSOR_ID_HUM);
 Sensor gas(SENSOR_ID_GAS);
 SensorBSEC bsec(SENSOR_ID_BSEC);
-SensorActivity active(SENSOR_ID_AR);
+SensorXYZ acc(SENSOR_ID_ACC);
 
 BLEService serviceUUID(BLE_UUID("0000"));
 BLEFloatCharacteristic tempUUID(BLE_UUID("1001"), BLERead | BLENotify);
@@ -19,8 +19,8 @@ BLEFloatCharacteristic humidityUUID(BLE_UUID("3001"), BLERead | BLENotify);
 BLEFloatCharacteristic gasUUID(BLE_UUID("4001"), BLERead | BLENotify);
 BLEFloatCharacteristic iaqUUID(BLE_UUID("5001"), BLERead | BLENotify);
 BLEFloatCharacteristic co2UUID(BLE_UUID("6001"), BLERead | BLENotify);
-BLEStringCharacteristic activityInfoUUID(BLE_UUID("7001"), BLERead | BLENotify, 50);
-BLEFloatCharacteristic activityFlagUUID(BLE_UUID("8001"), BLERead | BLENotify);
+BLEStringCharacteristic accUUID(BLE_UUID("7001"), BLERead | BLENotify, 50);
+BLEFloatCharacteristic FlagUUID(BLE_UUID("8001"), BLERead | BLENotify);
 
 unsigned long previousMillis = 0;
 const long interval = 15000;
@@ -44,7 +44,7 @@ void setup() {
   humidity.begin();
   gas.begin();
   bsec.begin();
-  active.begin();
+  acc.begin();
 
   BLE.setLocalName("ValueMonitor");
   BLE.setAdvertisedService(serviceUUID);
@@ -55,8 +55,8 @@ void setup() {
   serviceUUID.addCharacteristic(gasUUID);
   serviceUUID.addCharacteristic(iaqUUID);
   serviceUUID.addCharacteristic(co2UUID);
-  serviceUUID.addCharacteristic(activityInfoUUID);
-  serviceUUID.addCharacteristic(activityFlagUUID);
+  serviceUUID.addCharacteristic(accUUID);
+  serviceUUID.addCharacteristic(FlagUUID);
 
   BLE.addService(serviceUUID);
 
@@ -80,6 +80,20 @@ void loop() {
     BHY2.update();
     unsigned long currentMillis = millis();
 
+    if (accCharacteristic.subscribed()){
+      float x, y, z;
+      x = acc.x();
+      y = acc.y();
+      z = acc.z();
+
+      serial.println(x : "x");
+      serial.println(Y : "y");
+      serial.println(z : "z");
+
+      float accelerometerValues[] = {x, y, z};
+      accelerometerCharacteristic.writeValue(accelerometerValues, sizeof(accelerometerValues));
+    }
+
     if (currentMillis - previousMillis >= interval) {
       previousMillis = currentMillis;
 
@@ -90,25 +104,16 @@ void loop() {
       gasUUID.writeValue(gas.value());
       iaqUUID.writeValue(static_cast<float>(bsec.iaq()));
       co2UUID.writeValue(bsec.co2_eq());
-
-      // Read activity sensor
-      String activityString = active.toString();
-      Serial.println(String("Activity info: ") + activityString);
-      activityInfoUUID.writeValue(activityString);
-
-      float activityFlag = 1; // 1 means active, 0 means standing still or in vehicle still
-      if (activityString.equals("Still activity started") || activityString.equals("IN vehicle activity started")) {
-        activityFlag = 0;
-      }
-
-      activityFlagUUID.writeValue(activityFlag);
-      Serial.println(String("Activity Flag: ") + activityFlag);
     }
   }
 
-  /*if (!BLE.connected()) {
+  if (!BLE.connected()) {
     Serial.println("Disconnected");
     BLE.advertise();
     nicla::leds.setColor(red);
-  }*/
+  }
+
+  while (!BLE.connected()) {
+
+  }
 }
