@@ -19,14 +19,14 @@ BLEFloatCharacteristic humidityUUID(BLE_UUID("3001"), BLERead | BLENotify);
 BLEFloatCharacteristic gasUUID(BLE_UUID("4001"), BLERead | BLENotify);
 BLEFloatCharacteristic iaqUUID(BLE_UUID("5001"), BLERead | BLENotify);
 BLEFloatCharacteristic co2UUID(BLE_UUID("6001"), BLERead | BLENotify);
-BLEStringCharacteristic accUUID(BLE_UUID("7001"), BLERead | BLENotify, 50);
+BLEFloatCharacteristic accUUID(BLE_UUID("7001"), BLERead | BLENotify);
 BLEFloatCharacteristic FlagUUID(BLE_UUID("8001"), BLERead | BLENotify);
 
 unsigned long previousMillis = 0;
 const long interval = 15000;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   while (!Serial);
 
   if (!BLE.begin()) {
@@ -80,18 +80,17 @@ void loop() {
     BHY2.update();
     unsigned long currentMillis = millis();
 
-    if (accCharacteristic.subscribed()){
+    if (accUUID.subscribed()){
       float x, y, z;
       x = acc.x();
       y = acc.y();
       z = acc.z();
 
-      serial.println(x : "x");
-      serial.println(Y : "y");
-      serial.println(z : "z");
-
-      float accelerometerValues[] = {x, y, z};
-      accelerometerCharacteristic.writeValue(accelerometerValues, sizeof(accelerometerValues));
+      float accValues[] = {x, y, z};
+      for (int i=0;i<3;i++){
+        Serial.println(accValues[i]);
+        Serial.print(" ");
+      }
     }
 
     if (currentMillis - previousMillis >= interval) {
