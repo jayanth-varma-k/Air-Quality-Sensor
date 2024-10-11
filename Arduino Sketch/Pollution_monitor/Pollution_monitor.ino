@@ -19,11 +19,13 @@ BLEFloatCharacteristic humidityUUID(BLE_UUID("3001"), BLERead | BLENotify);
 BLEFloatCharacteristic gasUUID(BLE_UUID("4001"), BLERead | BLENotify);
 BLEFloatCharacteristic iaqUUID(BLE_UUID("5001"), BLERead | BLENotify);
 BLEFloatCharacteristic co2UUID(BLE_UUID("6001"), BLERead | BLENotify);
-BLEFloatCharacteristic accUUID(BLE_UUID("7001"), BLERead | BLENotify);
-BLEFloatCharacteristic FlagUUID(BLE_UUID("8001"), BLERead | BLENotify);
+//BLEFloatCharacteristic accUUID(BLE_UUID("7001"), BLERead | BLENotify);
+BLEFloatCharacteristic flagUUID(BLE_UUID("8001"), BLERead | BLENotify);
 
 unsigned long previousMillis = 0;
-const long interval = 15000;
+const long interval = 1500;
+float flag = 0;
+float minacc = 5000;
 
 void setup() {
   Serial.begin(115200);
@@ -55,8 +57,8 @@ void setup() {
   serviceUUID.addCharacteristic(gasUUID);
   serviceUUID.addCharacteristic(iaqUUID);
   serviceUUID.addCharacteristic(co2UUID);
-  serviceUUID.addCharacteristic(accUUID);
-  serviceUUID.addCharacteristic(FlagUUID);
+  //serviceUUID.addCharacteristic(accUUID);
+  serviceUUID.addCharacteristic(flagUUID);
 
   BLE.addService(serviceUUID);
 
@@ -80,18 +82,28 @@ void loop() {
     BHY2.update();
     unsigned long currentMillis = millis();
 
-    if (accUUID.subscribed()){
       float x, y, z;
-      x = acc.x();
-      y = acc.y();
-      z = acc.z();
+      x = abs(acc.x());
+      y = abs(acc.y());
+      z = abs(acc.z());
+      
+      /*
+      Serial.println("Acceleration ");
+      Serial.print("X: ");
+      Serial.println(x);
+      Serial.print("y: ");
+      Serial.println(y);  
+      Serial.print("z: ");
+      Serial.println(z);
+      Serial.print("Flag: ");
+      Serial.print(flag);
+      */
 
-      float accValues[] = {x, y, z};
-      for (int i=0;i<3;i++){
-        Serial.println(accValues[i]);
-        Serial.print(" ");
+      if (x < minacc && y < minacc && z < minacc) {
+        flag = 1;
+      } else {
+        flag = 0;
       }
-    }
 
     if (currentMillis - previousMillis >= interval) {
       previousMillis = currentMillis;
@@ -103,6 +115,16 @@ void loop() {
       gasUUID.writeValue(gas.value());
       iaqUUID.writeValue(static_cast<float>(bsec.iaq()));
       co2UUID.writeValue(bsec.co2_eq());
+      flagUUID.writeValue(flag);
+      Serial.println("Values Sent");
+
+      Serial.println(temp.value());
+      Serial.println(baro.value());
+      Serial.println(humidity.value());
+      Serial.println(gas.value());
+      Serial.println(static_cast<float>(bsec.iaq()));
+      Serial.println(bsec.co2_eq());
+      Serial.println(flag);
     }
   }
 
@@ -113,6 +135,27 @@ void loop() {
   }
 
   while (!BLE.connected()) {
+    BHY2.update();
+      /*float x, y, z;
+      x = abs(acc.x());
+      y = abs(acc.y());
+      z = abs(acc.z());
+      
+      Serial.println("Acceleration ");
+      Serial.print("X: ");
+      Serial.println(x);
+      Serial.print("y: ");
+      Serial.println(y);
+      Serial.print("z: ");
+      Serial.println(z);
+      Serial.print("Flag: ");
+      Serial.println(flag);
 
+      if (x < minacc && y < minacc && z < minacc) {
+        flag = 1;
+      } else {
+        flag = 0;
+      }
+      */
   }
 }
