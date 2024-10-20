@@ -1,0 +1,277 @@
+<!DOCTYPE html> 
+<html>
+<head>
+    <title>Live Air Quality Map</title>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    
+    <!-- MarkerCluster CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster/dist/MarkerCluster.Default.css" />
+    
+    <style>
+        #map {
+            height: 100vh;
+            width: 100vw;
+        }
+        #controls {
+            margin: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Real-Time Air Quality Map</h1>
+
+    <div id="controls">
+        <label for="fieldSelect">Choose a Field to Display: </label>
+        <select id="fieldSelect">
+            <option value="field1">Gas</option>
+            <option value="field2">Temperature</option>
+            <option value="field3">Pressure</option>
+            <option value="field4">Co2</option>
+            <option value="field5">IAQ</option>
+            <option value="field6">Humidity</option>
+        </select>
+    </div>
+
+    <!-- Map Selector Dropdown -->
+    <div id="mapSelector" style="position: absolute; top: 75px; left: 300px; z-index: 999; background: white; padding: 5px; border-radius: 5px;">
+        <label for="baseMapSelect">Choose Base Map: </label>
+        <select id="baseMapSelect">
+            <option value="osm">OpenStreetMap</option>
+            <option value="stamenToner">Stamen Toner</option>
+            <option value="stamenTerrain">Stamen Terrain</option>
+            <option value="cartoDBPositron">CartoDB Positron</option>
+            <option value="esriWorldImagery">Esri World Imagery</option>
+        </select>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    
+    <!-- MarkerCluster JS -->
+    <script src="https://unpkg.com/leaflet.markercluster/dist/leaflet.markercluster.js"></script>
+
+    <script>
+        // Initialize the map with a default view
+        var map = L.map('map').setView([17.44, 78.4629], 11);
+
+        // Base Map Layers
+        var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        var stamenToner = L.tileLayer('https://{s}.tile.stamen.com/toner/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: 'Map tiles by <a href="https://stamen.com">Stamen Design</a>, <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        var stamenTerrain = L.tileLayer('https://{s}.tile.stamen.com/terrain/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: 'Map tiles by <a href="https://stamen.com">Stamen Design</a>, <a href="http://openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        });
+
+        var cartoDBPositron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: 'Map tiles by <a href="https://carto.com">CARTO</a>, under <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>'
+        });
+
+        var esriWorldImagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ'
+        });
+
+        // Set default base map
+        osmLayer.addTo(map);
+
+        // Create a MarkerClusterGroup
+        var markers = L.markerClusterGroup({
+            maxClusterRadius: 5
+        });
+
+        // Add a control to switch between base maps
+        var baseMaps = {
+            "OpenStreetMap": osmLayer,
+            "Stamen Toner": stamenToner,
+            "Stamen Terrain": stamenTerrain,
+            "CartoDB Positron": cartoDBPositron,
+            "Esri World Imagery": esriWorldImagery
+        };
+
+        L.control.layers(baseMaps).addTo(map);
+
+        // Custom color functions for different fields
+        function getColorForField1(value) {
+            return value < 50 ? 'blue' : value < 100 ? 'green' : 'purple';
+        }
+
+        function getColorForField2(value) {
+            return value < 10 ? 'yellow' : value < 20 ? 'orange' : 'red';
+        }
+
+        function getColorForField3(value) {
+            return 'grey';
+        }
+
+        function getColorForField4(value) {
+            if (value < 700) {
+                return 'lightgreen'; 
+            } else if (value < 800) {
+                return 'yellow';
+            } else if (value < 1000) {
+                return 'orange';
+            } else if (value < 2500) {
+                return 'red';
+            } else {
+                return 'darkred';
+            }
+        }
+
+        function getColorForField5(value) {
+            return value < 50 ? 'lightgreen' : value < 100 ? 'orange' : 'red';
+        }
+
+        function getColorForField6(value) {
+            return value < 30 ? 'lightgreen' : value < 60 ? 'green' : 'lightgreen';
+        }
+
+        // MarkerClusterGroup with custom icon creation for clusters
+        var markers = L.markerClusterGroup({
+            iconCreateFunction: function(cluster) {
+                var markers = cluster.getAllChildMarkers();
+                var totalValue = 0;
+                var count = 0;
+
+                markers.forEach(function(marker) {
+                    const fieldValue = marker.options.fieldValue;
+                    if (!isNaN(fieldValue)) {
+                        totalValue += fieldValue;
+                        count++;
+                    }
+                });
+
+                const avgValue = totalValue / count;
+
+                const selectedField = document.getElementById('fieldSelect').value;
+                let markerColor;
+                switch (selectedField) {
+                    case 'field1':
+                        markerColor = getColorForField1(avgValue);
+                        break;
+                    case 'field2':
+                        markerColor = getColorForField2(avgValue);
+                        break;
+                    case 'field3':
+                        markerColor = getColorForField3(avgValue);
+                        break;
+                    case 'field4':
+                        markerColor = getColorForField4(avgValue);
+                        break;
+                    case 'field5':
+                        markerColor = getColorForField5(avgValue);
+                        break;
+                    case 'field6':
+                        markerColor = getColorForField6(avgValue);
+                        break;
+                }
+
+                return L.divIcon({
+                    html: `<div style="background-color:${markerColor}; border-radius: 50%; width: 40px; height: 40px; opacity: 0.8; display: flex; justify-content: center; align-items: center;">${Math.round(avgValue)}</div>`,
+                    className: 'cluster-icon',
+                    iconSize: [40, 40],
+                    iconAnchor: [20, 20]
+                });
+            }
+        });
+
+        // Fetch ThingSpeak data and plot markers
+        function fetchData(selectedField) {
+            const apiUrl = 'https://api.thingspeak.com/channels/2693534/feeds.json?api_key=1E514EFHA0HLOG95';
+
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.feeds && data.feeds.length > 0) {
+                        const feeds = data.feeds;
+
+                        markers.clearLayers();
+
+                        feeds.forEach(feed => {
+                            const latitude = parseFloat(feed.field7);
+                            const longitude = parseFloat(feed.field8);
+                            const fieldValue = parseFloat(feed[selectedField]);
+
+                            if (!isNaN(latitude) && !isNaN(longitude)) {
+                                const markerColor = (function() {
+                                    switch (selectedField) {
+                                        case 'field1': return getColorForField1(fieldValue);
+                                        case 'field2': return getColorForField2(fieldValue);
+                                        case 'field3': return getColorForField3(fieldValue);
+                                        case 'field4': return getColorForField4(fieldValue);
+                                        case 'field5': return getColorForField5(fieldValue);
+                                        case 'field6': return getColorForField6(fieldValue);
+                                        default: return 'gray';
+                                    }
+                                })();
+
+                                const marker = L.marker([latitude, longitude], {
+                                    icon: L.divIcon({
+                                        className: 'custom-marker',
+                                        html: `<div style="background-color:${markerColor}; width: 20px; height: 20px; border-radius: 50%;"></div>`,
+                                        iconSize: [20, 20]
+                                    }),
+                                    fieldValue: fieldValue
+                                });
+
+                                marker.bindPopup(`<strong>Field Value:</strong> ${fieldValue}`);
+                                markers.addLayer(marker);
+                            }
+                        });
+
+                        map.addLayer(markers);
+
+                        // Fit the map to show all markers
+                        map.fitBounds(markers.getBounds());
+                    }
+                });
+        }
+
+        // Event listener to update markers when the field is changed
+        document.getElementById('fieldSelect').addEventListener('change', function() {
+            const selectedField = this.value;
+            fetchData(selectedField);
+        });
+
+        // Event listener to change base map when the user selects a new base map
+        document.getElementById('baseMapSelect').addEventListener('change', function() {
+            const selectedBaseMap = this.value;
+            switch (selectedBaseMap) {
+                case 'osm':
+                    osmLayer.addTo(map);
+                    break;
+                case 'stamenToner':
+                    stamenToner.addTo(map);
+                    break;
+                case 'stamenTerrain':
+                    stamenTerrain.addTo(map);
+                    break;
+                case 'cartoDBPositron':
+                    cartoDBPositron.addTo(map);
+                    break;
+                case 'esriWorldImagery':
+                    esriWorldImagery.addTo(map);
+                    break;
+            }
+        });
+
+        // Initial load of markers
+        fetchData('field1');
+    </script>
+</body>
+</html>
